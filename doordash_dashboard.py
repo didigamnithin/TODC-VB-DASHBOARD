@@ -74,7 +74,7 @@ def load_data():
         marketing_df['Date'] = pd.to_datetime(marketing_df['Date'])
         
         # Load financial data
-        financial_df = pd.read_csv('financial_2025-09-30_2025-10-06_VR2th_2025-10-07T11-19-19Z/FINANCIAL_DETAILED_TRANSACTIONS_2025-09-30_2025-10-06_VR2th_2025-10-07T11-19-19Z.csv')
+        financial_df = pd.read_csv('financial_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z/FINANCIAL_DETAILED_TRANSACTIONS_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z.csv')
         financial_df['Timestamp local date'] = pd.to_datetime(financial_df['Timestamp local date'])
         
         return marketing_df, financial_df
@@ -390,5 +390,5 @@ else:
     st.info("""
     **Required files:**
     - `marketing_2025-09-22_2025-10-05_IeW4u_2025-10-07T11-22-22Z/MARKETING_PROMOTION_2025-09-22_2025-10-05_IeW4u_2025-10-07T11-22-22Z.csv`
-    - `financial_2025-09-30_2025-10-06_VR2th_2025-10-07T11-19-19Z/FINANCIAL_DETAILED_TRANSACTIONS_2025-09-30_2025-10-06_VR2th_2025-10-07T11-19-19Z.csv`
+    - `financial_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z/FINANCIAL_DETAILED_TRANSACTIONS_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z.csv`
     """)
