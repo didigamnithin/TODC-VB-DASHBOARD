@@ -82,11 +82,50 @@ def load_data():
         st.error(f"Error loading data: {e}")
         return None, None
 
+# Load GrubHub data function
+@st.cache_data
+def load_grubhub_data():
+    """Load and cache all GrubHub data files"""
+    try:
+        import os
+        data = {}
+        
+        # Load all CSV files
+        files = {
+            'financial_summary': 'grubhub/financial_summary.csv',
+            'operations_summary': 'grubhub/operations_summary.csv',
+            'order_details': 'grubhub/order_details.csv',
+            'transactions': 'grubhub/transactions.csv',
+            'product_mix': 'grubhub/product_mix.csv',
+            'cancellations': 'grubhub/cancellations.csv',
+            'deposits': 'grubhub/deposits.csv',
+            'deposit_details': 'grubhub/deposit_details.csv'
+        }
+        
+        for key, file_path in files.items():
+            if os.path.exists(file_path):
+                df = pd.read_csv(file_path)
+                
+                # Convert date columns
+                date_columns = ['start_date', 'end_date', 'order_date', 'transaction_date', 'cancellation_date', 'payout_date']
+                for col in date_columns:
+                    if col in df.columns:
+                        df[col] = pd.to_datetime(df[col], errors='coerce')
+                
+                data[key] = df
+            else:
+                data[key] = pd.DataFrame()
+        
+        return data
+    except Exception as e:
+        st.error(f"Error loading GrubHub data: {e}")
+        return {}
+
 # Main header
 st.markdown("""
 <div class="main-header">
-    <h1>🚀 TODC - VB Dashboard</h1>
-    <p>Comprehensive Analytics for Marketing Performance & Financial Insights</p>
+    <h1>🚀 TODC - Unified Analytics Dashboard</h1>
+    <p>Comprehensive Analytics for DoorDash & GrubHub Performance</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -99,11 +138,11 @@ with col1:
 with col2:
     ubereats_btn = st.button("🍔 UberEats", key="ubereats", disabled=True)
 with col3:
-    grubhub_btn = st.button("🍕 GrubHub", key="grubhub", disabled=True)
+    grubhub_btn = st.button("🍕 GrubHub", key="grubhub", type="primary")
 
 # Show coming soon message for other platforms
-if ubereats_btn or grubhub_btn:
-    st.info("🚧 Coming Soon! This platform analysis will be available in future updates.")
+if ubereats_btn:
+    st.info("🚧 Coming Soon! UberEats analysis will be available in future updates.")
 
 # Only show DoorDash analysis for now
 if not doordash_btn and not ubereats_btn and not grubhub_btn:
@@ -111,11 +150,288 @@ if not doordash_btn and not ubereats_btn and not grubhub_btn:
 
 # Load data
 marketing_df, financial_df = load_data()
+grubhub_data = load_grubhub_data()
 
-if marketing_df is not None and financial_df is not None:
+# Determine which platform to show
+selected_platform = "DoorDash"  # Default
+if grubhub_btn:
+    selected_platform = "GrubHub"
+elif doordash_btn:
+    selected_platform = "DoorDash"
+
+# Show platform-specific analysis
+if selected_platform == "GrubHub" and grubhub_data:
+    # Platform indicator
+    st.markdown(f"### 🍕 Currently Viewing: GrubHub Analytics")
+    
+    # GrubHub sidebar filters
+    st.sidebar.markdown("## 🎛️ GrubHub Dashboard Controls")
+    
+    # Date range filter
+    st.sidebar.markdown("### 📅 Date Range Filter")
+    
+    # Get date range from financial summary
+    if 'financial_summary' in grubhub_data and not grubhub_data['financial_summary'].empty:
+        date_min = grubhub_data['financial_summary']['start_date'].min().date()
+        date_max = grubhub_data['financial_summary']['end_date'].max().date()
+        
+        date_range = st.sidebar.date_input(
+            "Select Date Range",
+            value=(date_min, date_max),
+            min_value=date_min,
+            max_value=date_max
+        )
+    else:
+        date_range = None
+    
+    # Store filter
+    st.sidebar.markdown("### 🏪 Store Filter")
+    
+    if 'financial_summary' in grubhub_data and not grubhub_data['financial_summary'].empty:
+        stores = ['All'] + sorted(grubhub_data['financial_summary']['store_name'].unique().tolist())
+        selected_store = st.sidebar.selectbox("Select Store", stores)
+    else:
+        selected_store = 'All'
+    
+    # Customer type filter
+    st.sidebar.markdown("### 👥 Customer Type Filter")
+    customer_types = ['All', 'New', 'Returning', 'Loyal']
+    selected_customer_type = st.sidebar.selectbox("Customer Type", customer_types)
+    
+    # GH+ filter
+    gh_plus_options = ['All', 'GH+', 'Non-GH+']
+    selected_gh_plus = st.sidebar.selectbox("GH+ Customer", gh_plus_options)
+    
+    # Apply filters function
+    def apply_grubhub_filters(df, date_col='start_date', end_col='end_date'):
+        filtered_df = df.copy()
+        
+        if date_range and len(date_range) == 2 and date_col in filtered_df.columns:
+            filtered_df = filtered_df[
+                (filtered_df[date_col].dt.date >= date_range[0]) &
+                (filtered_df[end_col].dt.date <= date_range[1])
+            ]
+        
+        if selected_store != 'All' and 'store_name' in filtered_df.columns:
+            filtered_df = filtered_df[filtered_df['store_name'] == selected_store]
+        
+        return filtered_df
+    
+    # Financial Analysis Section
+    st.markdown('<div class="section-header">💰 Financial Performance</div>', unsafe_allow_html=True)
+    
+    if 'financial_summary' in grubhub_data and not grubhub_data['financial_summary'].empty:
+        financial_filtered = apply_grubhub_filters(grubhub_data['financial_summary'])
+        
+        if not financial_filtered.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_orders = financial_filtered['total_orders'].sum()
+                st.metric(
+                    label="📦 Total Orders",
+                    value=f"{total_orders:,}",
+                    delta=None
+                )
+            
+            with col2:
+                total_sales = financial_filtered['subtotal_sales'].sum()
+                st.metric(
+                    label="💵 Total Sales",
+                    value=f"${total_sales:,.2f}",
+                    delta=None
+                )
+            
+            with col3:
+                net_total = financial_filtered['merchant_net_total'].sum()
+                st.metric(
+                    label="💰 Net Total",
+                    value=f"${net_total:,.2f}",
+                    delta=None
+                )
+            
+            with col4:
+                avg_order_value = total_sales / total_orders if total_orders > 0 else 0
+                st.metric(
+                    label="💵 Average Order Value",
+                    value=f"${avg_order_value:.2f}",
+                    delta=None
+                )
+            
+            # Commission analysis
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                total_commission = abs(financial_filtered['commission'].sum())
+                st.metric(
+                    label="💸 Total Commission",
+                    value=f"${total_commission:,.2f}",
+                    delta=None
+                )
+            
+            with col2:
+                commission_rate = (total_commission / total_sales * 100) if total_sales > 0 else 0
+                st.metric(
+                    label="📊 Commission Rate",
+                    value=f"{commission_rate:.1f}%",
+                    delta=None
+                )
+            
+            with col3:
+                total_tips = financial_filtered['tip'].sum()
+                st.metric(
+                    label="💝 Total Tips",
+                    value=f"${total_tips:,.2f}",
+                    delta=None
+                )
+    
+    # Operations Analysis Section
+    st.markdown('<div class="section-header">⚙️ Operations Performance</div>', unsafe_allow_html=True)
+    
+    if 'operations_summary' in grubhub_data and not grubhub_data['operations_summary'].empty:
+        ops_filtered = apply_grubhub_filters(grubhub_data['operations_summary'])
+        
+        if not ops_filtered.empty:
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                total_orders_ops = ops_filtered['total_orders'].sum()
+                st.metric(
+                    label="📦 Total Orders",
+                    value=f"{total_orders_ops:,}",
+                    delta=None
+                )
+            
+            with col2:
+                cancelled_orders = ops_filtered['total_canceled_orders'].sum()
+                cancellation_rate = (cancelled_orders / total_orders_ops * 100) if total_orders_ops > 0 else 0
+                st.metric(
+                    label="❌ Cancellation Rate",
+                    value=f"{cancellation_rate:.1f}%",
+                    delta=None
+                )
+            
+            with col3:
+                new_customers = ops_filtered['new_customer_orders'].sum()
+                new_customer_rate = (new_customers / total_orders_ops * 100) if total_orders_ops > 0 else 0
+                st.metric(
+                    label="🆕 New Customer Rate",
+                    value=f"{new_customer_rate:.1f}%",
+                    delta=None
+                )
+            
+            with col4:
+                gh_plus_orders = ops_filtered['gh_plus_customer_orders'].sum()
+                gh_plus_rate = (gh_plus_orders / total_orders_ops * 100) if total_orders_ops > 0 else 0
+                st.metric(
+                    label="⭐ GH+ Customer Rate",
+                    value=f"{gh_plus_rate:.1f}%",
+                    delta=None
+                )
+    
+    # Store Performance Analysis
+    st.markdown('<div class="section-header">🏪 Store Performance Analysis</div>', unsafe_allow_html=True)
+    
+    if 'financial_summary' in grubhub_data and not grubhub_data['financial_summary'].empty:
+        # Top performing stores
+        store_performance = financial_filtered.groupby('store_name').agg({
+            'total_orders': 'sum',
+            'subtotal_sales': 'sum',
+            'merchant_net_total': 'sum',
+            'commission': 'sum'
+        }).reset_index()
+        
+        store_performance['avg_order_value'] = store_performance['subtotal_sales'] / store_performance['total_orders']
+        store_performance['commission_rate'] = abs(store_performance['commission']) / store_performance['subtotal_sales'] * 100
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Top stores by sales
+            top_stores_sales = store_performance.nlargest(10, 'subtotal_sales')
+            fig_sales = px.bar(top_stores_sales, x='store_name', y='subtotal_sales',
+                              title='Top 10 Stores by Sales',
+                              color='subtotal_sales',
+                              color_continuous_scale='Oranges')
+            fig_sales.update_layout(xaxis_tickangle=-45, height=400)
+            st.plotly_chart(fig_sales, use_container_width=True)
+        
+        with col2:
+            # Top stores by orders
+            top_stores_orders = store_performance.nlargest(10, 'total_orders')
+            fig_orders = px.bar(top_stores_orders, x='store_name', y='total_orders',
+                               title='Top 10 Stores by Orders',
+                               color='total_orders',
+                               color_continuous_scale='Blues')
+            fig_orders.update_layout(xaxis_tickangle=-45, height=400)
+            st.plotly_chart(fig_orders, use_container_width=True)
+    
+    # Product Performance Analysis
+    st.markdown('<div class="section-header">🍽️ Product Performance</div>', unsafe_allow_html=True)
+    
+    if 'product_mix' in grubhub_data and not grubhub_data['product_mix'].empty:
+        product_data = grubhub_data['product_mix']
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # Top selling items
+            top_items = product_data.nlargest(15, 'quantity_sold')
+            fig_items = px.bar(top_items, x='menu_item_name', y='quantity_sold',
+                              title='Top 15 Items by Quantity Sold',
+                              color='quantity_sold',
+                              color_continuous_scale='Greens')
+            fig_items.update_layout(xaxis_tickangle=-45, height=400)
+            st.plotly_chart(fig_items, use_container_width=True)
+        
+        with col2:
+            # Top revenue items
+            top_revenue = product_data.nlargest(15, 'item_sales')
+            fig_revenue = px.bar(top_revenue, x='menu_item_name', y='item_sales',
+                                title='Top 15 Items by Revenue',
+                                color='item_sales',
+                                color_continuous_scale='Purples')
+            fig_revenue.update_layout(xaxis_tickangle=-45, height=400)
+            st.plotly_chart(fig_revenue, use_container_width=True)
+    
+    # Data Summary
+    st.markdown('<div class="section-header">📋 Data Summary</div>', unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**GrubHub Data Summary:**")
+        for key, df in grubhub_data.items():
+            if not df.empty:
+                st.write(f"- {key.replace('_', ' ').title()}: {len(df):,} records")
+    
+    with col2:
+        st.markdown("**Filter Summary:**")
+        st.write(f"- Date Range: {date_range[0] if date_range else 'All dates'} to {date_range[1] if date_range else 'All dates'}")
+        st.write(f"- Store: {selected_store}")
+        st.write(f"- Customer Type: {selected_customer_type}")
+        st.write(f"- GH+ Status: {selected_gh_plus}")
+
+elif selected_platform == "GrubHub" and not grubhub_data:
+    st.error("❌ Unable to load GrubHub data. Please check that the CSV files are in the correct location.")
+    st.info("""
+    **Required files in grubhub/ directory:**
+    - financial_summary.csv
+    - operations_summary.csv
+    - order_details.csv
+    - transactions.csv
+    - product_mix.csv
+    - cancellations.csv
+    - deposits.csv
+    - deposit_details.csv
+    """)
+
+elif selected_platform == "DoorDash" and marketing_df is not None and financial_df is not None:
+    # Platform indicator
+    st.markdown(f"### 🚀 Currently Viewing: DoorDash Analytics")
     
     # Sidebar filters
-    st.sidebar.markdown("## 🎛️ Dashboard Controls")
+    st.sidebar.markdown("## 🎛️ DoorDash Dashboard Controls")
     
     # Marketing filters
     st.sidebar.markdown("### 📊 Marketing Analysis Filters")
@@ -392,14 +708,17 @@ if marketing_df is not None and financial_df is not None:
     st.markdown("""
     <div style="text-align: center; color: #666; padding: 2rem;">
         <p><strong>TODC - VB Dashboard</strong> | Powered by Streamlit</p>
-        <p>Data Analysis & Visualization Platform</p>
+        <p>Unified Analytics Platform for DoorDash & GrubHub</p>
     </div>
     """, unsafe_allow_html=True)
 
-else:
-    st.error("❌ Unable to load data. Please check that the CSV files are in the correct location.")
+elif selected_platform == "DoorDash" and (marketing_df is None or financial_df is None):
+    st.error("❌ Unable to load DoorDash data. Please check that the CSV files are in the correct location.")
     st.info("""
     **Required files:**
     - `marketing_2025-09-22_2025-10-05_IeW4u_2025-10-07T11-22-22Z/MARKETING_PROMOTION_2025-09-22_2025-10-05_IeW4u_2025-10-07T11-22-22Z.csv`
     - `financial_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z/FINANCIAL_DETAILED_TRANSACTIONS_2025-09-22_2025-10-05_fZY06_2025-10-07T13-11-16Z.csv`
     """)
+
+else:
+    st.info("👆 Please select a platform above to view analytics.")
